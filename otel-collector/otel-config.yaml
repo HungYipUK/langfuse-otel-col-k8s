@@ -1,0 +1,240 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-collector-conf
+  namespace: langfuse
+  labels:
+    app: opentelemetry
+    component: otel-collector-conf
+data:
+  otel-collector-config: |
+    receivers:
+      otlp:
+        protocols:
+          grpc:
+            #endpoint: ${env:MY_POD_IP}:4317
+            endpoint: 0.0.0.0:4317
+            auth:
+              authenticator: bearertokenauth
+          http:
+            #endpoint: ${env:MY_POD_IP}:4318
+            endpoint: 0.0.0.0:4318
+            auth:
+              authenticator: bearertokenauth
+    
+    processors:
+      memory_limiter:
+        # 80% of maximum memory up to 2G
+        limit_mib: 1500
+        # 25% of limit up to 2G
+        spike_limit_mib: 512
+        check_interval: 5s
+    
+      filter/non_target_users:
+        error_mode: propagate
+        trace_conditions:
+          - >-
+            span.attributes["user.email"] != "kwonghung.yip@nttdata.com"
+            and span.attributes["user.email"] != "user1@abc.com"
+            and span.attributes["user.email"] != "user2@abc.com"
+
+    extensions:
+      zpages: {}
+      health_check: {}
+      bearertokenauth:
+        # define either one token/tokens/filename
+        # token: "my-demo-token"
+        filename: "/conf/bearer-tokens.keys"
+    
+    exporters:
+      debug:
+        verbosity: detailed # basic/normal/detailed
+
+      file/logs-log:
+        create_directory: true
+        path: /output/logs.log
+        format: json
+
+      file/metrics-log:
+        create_directory: true
+        path: /output/metrics.log
+        format: json
+
+      file/traces-log:
+        create_directory: true
+        path: /output/traces.log
+        format: json
+
+      otlphttp/langfuse:
+        endpoint: http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel  # Or your self-hosted base URL + /api/public/otel
+        #traces_endpoint: http://langfuse-web:3000/api/public/otel/v1/traces
+        headers:
+          Authorization: "Basic ${env:LANGFUSE_BASIC_AUTH:-}" # Previously encoded API keys
+          #Content-Type: application/json
+          x-langfuse-ingestion-version: "4"
+        #tls:
+        #  insecure: true
+        #encoding: json
+        #retry_on_failure:
+        #  enabled: true
+
+      #otlp_grpc:
+      #  endpoint: "http://someotlp.target.com:4317" # Replace with a real endpoint.
+      #  tls:
+      #    insecure: true
+    service:
+      extensions:
+        - zpages
+        - health_check
+        - bearertokenauth
+      
+      telemetry:
+        metrics:
+          level: detailed # none/basic/normal/detailed
+          readers:
+            - pull:
+                exporter:
+                  prometheus:
+                    host: "0.0.0.0"
+                    port: 8888
+                    without_scope_info: true
+                    without_type_suffix: true
+                    without_units: true
+                    with_resource_constant_labels:
+                      included: [ ]
+        logs:
+          level: debug
+          development: true
+          encoding: "json"
+      
+      pipelines:
+        logs/otlp:
+          receivers: [otlp]
+          processors: [memory_limiter]
+          exporters: [debug, file/logs-log]
+
+        metrics/otlp:
+          receivers: [otlp] #, prometheus]
+          processors: [memory_limiter]
+          exporters: [debug, file/metrics-log]
+
+        traces/otlp:
+          receivers: [otlp]
+          processors: 
+            - memory_limiter
+            - filter/non_target_users
+          exporters: 
+            - debug
+            - file/traces-log
+            - otlphttp/langfuse
+  bearer-tokens: |
+    user1-token # token for user1
+    user2-token # token for user2
+    Pk1XTWr0GUlV9CwiM8yKXcUl94wegqBMnS9JrPsnMi0= # random token openssl rand -base64 32
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+  namespace: langfuse
+  labels:
+    app: opentelemetry
+    component: otel-collector
+spec:
+  ports:
+  - name: otlp-grpc # Default endpoint for OpenTelemetry gRPC receiver.
+    port: 4317
+    protocol: TCP
+    targetPort: 4317
+  - name: otlp-http # Default endpoint for OpenTelemetry HTTP receiver.
+    port: 4318
+    protocol: TCP
+    targetPort: 4318
+  - name: metrics # Default endpoint for querying metrics.
+    port: 8888
+  selector:
+    component: otel-collector
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-collector
+  namespace: langfuse
+  labels:
+    app: opentelemetry
+    component: otel-collector
+spec:
+  selector:
+    matchLabels:
+      app: opentelemetry
+      component: otel-collector
+  #minReadySeconds: 5
+  #progressDeadlineSeconds: 120
+  #replicas: 1 #TODO - adjust this to your own requirements
+  template:
+    metadata:
+      labels:
+        app: opentelemetry
+        component: otel-collector
+    spec:
+      containers:
+      - command:
+          - "/otelcol-contrib"
+          - "--config=/conf/otel-collector-config.yaml"
+        image: otel/opentelemetry-collector-contrib:0.165.0
+        name: otel-collector
+        resources:
+          limits:
+            cpu: 500m
+            memory: 500Mi
+          requests:
+            cpu: 100m
+            memory: 400Mi
+        ports:
+        - containerPort: 55679 # Default endpoint for ZPages.
+        - containerPort: 4317 # Default gRPC endpoint for OpenTelemetry receiver.
+        - containerPort: 4318 # Default HTTP endpoint for OpenTelemetry receiver.
+        #- containerPort: 14250 # Default endpoint for Jaeger gRPC receiver.
+        #- containerPort: 14268 # Default endpoint for Jaeger HTTP receiver.
+        #- containerPort: 9411 # Default endpoint for Zipkin receiver.
+        - containerPort: 8888  # Default endpoint for querying metrics.
+        env:
+          - name: MY_POD_IP
+            valueFrom:
+              fieldRef:
+                apiVersion: v1
+                fieldPath: status.podIP
+          - name: GOMEMLIMIT
+            value: 400MiB
+          - name: LANGFUSE_BASIC_AUTH
+            value: "cGstbGYtNTIxN2E5OWEtMWM3ZC00ZGU4LWJiOWItMzg3ZDc0ZTlhNTQ5OnNrLWxmLTZjYzI5ZTIyLThmNTYtNGRjYS04NmU0LTc3YTdhMjg3OTY1NQ=="
+        volumeMounts:
+          - name: otel-collector-config-vol
+            mountPath: /conf
+          - name: otel-exporter-logs-volume
+            mountPath: /output
+            readOnly: false
+  #        - name: otel-collector-secrets
+  #          mountPath: /secrets
+      volumes:
+        - configMap:
+            name: otel-collector-conf
+            items:
+              - key: otel-collector-config
+                path: otel-collector-config.yaml
+              - key: bearer-tokens
+                path: bearer-tokens.keys
+          name: otel-collector-config-vol
+        - name: otel-exporter-logs-volume
+          emptyDir: {}
+          #hostPath:
+          #  path: /home/hung/projects/langfuse-otel-col-k8s/otel-collector/output
+          #  type: DirectoryOrCreate
+#        - secret:
+#            name: otel-collector-secrets
+#            items:
+#              - key: cert.pem
+#                path: cert.pem
+#              - key: key.pem
+#                path: key.pem

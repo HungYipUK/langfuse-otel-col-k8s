@@ -1,0 +1,38 @@
+langfuse:
+  additionalEnv:
+    - name: LANGFUSE_INIT_ORG_ID
+      value: "demo-org"
+    - name: LANGFUSE_INIT_ORG_NAME
+      value: "Demo Org"
+    - name: LANGFUSE_INIT_PROJECT_ID
+      value: "demo-project"
+    - name: LANGFUSE_INIT_PROJECT_NAME
+      value: "Demo Project"
+    - name: LANGFUSE_INIT_PROJECT_PUBLIC_KEY
+      value: "pk-lf-5217a99a-1c7d-4de8-bb9b-387d74e9a549"
+    - name: LANGFUSE_INIT_PROJECT_SECRET_KEY
+      value: "sk-lf-6cc29e22-8f56-4dca-86e4-77a7a2879655"
+    - name: LANGFUSE_INIT_USER_EMAIL
+      value: "admin@demo.com"
+    - name: LANGFUSE_INIT_USER_NAME
+      value: "admin"
+    - name: LANGFUSE_INIT_USER_PASSWORD
+      value: "abcd1234"
+
+clickhouse:
+  deploy: true
+  auth:
+    username: default
+    password: changeme # or point auth.existingSecret at a secret you manage
+  cluster:
+    replicas: 3
+    storage:
+      size: 10Gi # Start with a large volume to prevent early resizing. Alternatively, consider a blob storage-backed disk.
+    resources:
+      requests:
+        cpu: "2"
+        memory: 2Gi
+      limits:
+        memory: 8Gi
+  keeper:
+    replicas: 3
