@@ -1,0 +1,36 @@
+services:
+  cursor-cli:
+    build:
+      context: ./docker-build
+    container_name: cursor-cli
+    network_mode: host
+    command: /bin/bash -c "sleep infinity"
+    environment:
+      CURSOR_API_KEY: ${CURSOR_API_KEY:-}
+      #MY_OTEL_AUTH_TOKEN: user1-token
+      IDE_OTEL_HOOK_HOME: /root/.local/share/opentelemetry-hooks
+      OTEL_EXPORTER_OTLP_ENDPOINT: "http://otel-collector-grpc.local:80" # "http://localhost:4317" 
+      OTEL_EXPORTER_OTLP_PROTOCOL: "grpc" # grpc, http/protobuf
+      OTEL_EXPORTER_OTLP_INSECURE: true
+      # header key must be in lowercase, and values is url encoded
+      OTEL_EXPORTER_OTLP_HEADERS: "authorization=Bearer%20${MY_OTEL_AUTH_TOKEN:-}"
+      IDE_OTEL_CAPTURE_TOOL_INPUT_CONTENT: true
+      IDE_OTEL_CAPTURE_TEXT: true
+      IDE_OTEL_CAPTURE_CONVERSATION_CONTENT: true
+      IDE_OTEL_CAPTURE_USER_IDENTITY: true
+      IDE_OTEL_LOG_LEVEL: DEBUG
+      IDE_OTEL_LOG_EVENTS: true
+      IDE_OTEL_DEBUG_CONSOLE: true
+      #OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+      #OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces
+      #OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics
+      #OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs
+      #OTEL_EXPORTER_OTLP_HEADERS: "Authorization=Basic <base64-credentials>"
+      #OTEL_EXPORTER_OTLP_METRICS_TEMPORALITY_PREFERENCE: cumulative
+    volumes:
+      - .cursor/agents:/my-project/.cursor/agents
+      - .cursor/commands:/my-project/.cursor/commands
+      #- .cursor/skills:/my-project/.cursor/skills
+      #- $HOME/.cursor/agents:/root/.cursor/agents
+      #- $HOME/.cursor/skills:/root/.cursor/skills
+      #- $HOME/.agent-library:/root/.agent-library

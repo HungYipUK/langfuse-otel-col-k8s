@@ -7,6 +7,8 @@ export START=$(($(date +%s) * 1000000000))
 export END=$((START + 1000000))
 
 export JSON_FILE_NAME="trace-samples/simple-trace.json"
+#export OTEL_HOST="http://localhost:4318"
+export OTEL_HOST="http://otel-collector-http.local"
 
 jq '
   walk(
@@ -17,7 +19,7 @@ jq '
     end
   )
 ' $JSON_FILE_NAME | \
-curl -v -X POST "http://localhost:4318/v1/traces" \
+curl -v -X POST "$OTEL_HOST/v1/traces" \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer user1-token" \
   -d @-

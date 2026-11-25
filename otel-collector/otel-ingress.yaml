@@ -1,0 +1,55 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: otel-collector-http
+  namespace: opentelemetry-collector
+spec:
+  ingressClassName: traefik
+  rules:
+    - host: otel-collector-http.local
+      http:
+        paths:
+          - path: /v1/traces
+            pathType: Prefix
+            backend:
+              service:
+                name: otel-collector
+                port:
+                  number: 4318
+          - path: /v1/metrics
+            pathType: Prefix
+            backend:
+              service:
+                name: otel-collector
+                port:
+                  number: 4318
+          - path: /v1/logs
+            pathType: Prefix
+            backend:
+              service:
+                name: otel-collector
+                port:
+                  number: 4318
+          - path: /metrics
+            pathType: Exact
+            backend:
+              service:
+                name: otel-collector
+                port:
+                  number: 8888
+---
+apiVersion: traefik.io/v1alpha1
+kind: IngressRoute
+metadata:
+  name: otel-collector-grpc
+  namespace: opentelemetry-collector
+spec:
+  entryPoints:
+    - web
+  routes:
+    - match: Host(`otel-collector-grpc.local`)
+      kind: Rule
+      services:
+        - name: otel-collector
+          port: 4317
+          scheme: h2c
