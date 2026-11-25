@@ -1,4 +1,17 @@
+#
+# langfuse Helm Chart Configuration Options
+# https://github.com/langfuse/langfuse-k8s/blob/main/charts/langfuse/README.md
+#
 langfuse:
+  ingress:
+    enabled: true
+    className: traefik # or traefik, alb, etc.
+    annotations: {}
+    hosts:
+      - host: langfuse.local
+        paths:
+          - path: /
+            pathType: Prefix
   additionalEnv:
     - name: LANGFUSE_INIT_ORG_ID
       value: "demo-org"

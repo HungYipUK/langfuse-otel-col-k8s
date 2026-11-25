@@ -22,6 +22,8 @@ helm install langfuse langfuse/langfuse -n langfuse -f langfuse/values.yaml
 
 # port-forward to langfuse-web
 kubectl port-forward service/langfuse-web -n langfuse --address 0.0.0.0 3000:3000
+
+helm upgrade langfuse langfuse/langfuse -n langfuse -f langfuse/values.yaml
 ```
 
 ## Clean up LangFuse Helm Chart
